@@ -42,10 +42,17 @@ export default function MixerControls({
       setIsLoading(true);
       setProgress(20);
 
+      const allPorts = ["1", "2", "3", "4"];
+
+
+      const activeIndexes = allPorts
+        .map((port, i) => ({ port, i }))
+        .filter(({ i }) => magWeights[i] > 0 || phaseWeights[i] > 0);
+
       const reqBody = {
-        ports: ["1", "2", "3", "4"],
-        mag_weights: magWeights,
-        phase_weights: phaseWeights,
+        ports: activeIndexes.map(({ port }) => port),
+        mag_weights: activeIndexes.map(({ i }) => magWeights[i]),
+        phase_weights: activeIndexes.map(({ i }) => phaseWeights[i]),
         target_port: targetPort,
         region: {
           pct: regionSize,

@@ -35,18 +35,57 @@ async def upload_image(port_id: str, file: UploadFile = File(...)):
 
     return {"message": f"Image uploaded to port {port_id}"}
 
+@router.get("/component/{port_id}/{component_type}")
+def get_component(port_id: str, component_type: str):
+    if port_id not in image_cache:
+        raise HTTPException(status_code=404, detail=f"No image loaded in port {port_id}")
 
+    img_ft = image_cache[port_id]
+    component_type = component_type.lower()
+
+    if component_type == "magnitude":
+        comp = np.log1p(np.abs(img_ft.freq_shifted))
+    elif component_type == "phase":
+        comp = np.angle(img_ft.freq_shifted)
+    elif component_type == "real":
+        comp = np.real(img_ft.freq_shifted)
+    elif component_type == "imaginary":
+        comp = np.imag(img_ft.freq_shifted)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid component type")
+
+    comp = comp.astype(np.float32)
+    comp = comp - comp.min()
+    if comp.max() > 0:
+        comp = comp / comp.max()
+    comp = (comp * 255).astype(np.uint8)
+
+    _, encoded = cv2.imencode(".png", comp)
+    image_b64 = base64.b64encode(encoded.tobytes()).decode("utf-8")
+
+    return {"image_b64": image_b64}
+    
 @router.post("/mix")
 def mix_images(req: MixRequest):
-    images_ft = []
+    active_images = []
 
     for port in req.ports:
-        if port not in image_cache:
+        if port not in raw_image_cache:
             raise HTTPException(
                 status_code=400,
                 detail=f"Please load an image in port {port} before mixing."
             )
-        images_ft.append(image_cache[port])
+        active_images.append(raw_image_cache[port])
+
+    min_h = min(img.shape[0] for img in active_images)
+    min_w = min(img.shape[1] for img in active_images)
+
+    resized_images = [
+        cv2.resize(img, (min_w, min_h), interpolation=cv2.INTER_AREA)
+        for img in active_images
+    ]
+
+    images_ft = [ImageFT(img) for img in resized_images]
 
     region_pct = req.region.get("pct", 100) / 100.0
     region_inner = req.region.get("inner", True)
