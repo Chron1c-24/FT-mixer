@@ -3,12 +3,14 @@ import cv2
 
 class ImageFT:
     def __init__(self, image: np.ndarray):
-        """
-        Initialize the ImageFT instance.
-        :param image: 2D numpy array representing grayscale image
-        """
-        self.spatial = image.astype(np.float32)
-        # Compute 2D Fourier Transform
+        self.original_color = image.copy()
+
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = image.copy()
+
+        self.spatial = gray.astype(np.float32)
         self.freq_complex = np.fft.fft2(self.spatial)
         self.freq_shifted = np.fft.fftshift(self.freq_complex)
 

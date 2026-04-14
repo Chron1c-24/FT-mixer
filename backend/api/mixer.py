@@ -37,7 +37,7 @@ def sync_all_images():
             scale = min(target_shape[0]/w, target_shape[1]/h)
             new_w, new_h = int(w*scale), int(h*scale)
             resized = cv2.resize(raw_img, (new_w, new_h))
-            padded = np.zeros((target_shape[1], target_shape[0]), dtype=np.uint8)
+            padded = np.zeros((target_shape[1], target_shape[0], 3), dtype=np.uint8)
             y_off = (target_shape[1] - new_h) // 2
             x_off = (target_shape[0] - new_w) // 2
             padded[y_off:y_off+new_h, x_off:x_off+new_w] = resized
@@ -62,7 +62,7 @@ def update_policy(req: PolicyRequest):
 async def upload_image(port_id: str, file: UploadFile = File(...)):
     contents = await file.read()
     nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if img is None:
         raise HTTPException(status_code=400, detail="Invalid image file")
         
@@ -98,7 +98,7 @@ def get_component(port_id: str, component_type: str):
     _, encoded_comp = cv2.imencode('.png', comp_norm)
     b64_str = base64.b64encode(encoded_comp).decode('utf-8')
     
-    spatial = img_ft.spatial.astype(np.uint8)
+    spatial = img_ft.original_color
     _, enc_spat = cv2.imencode('.png', spatial)
     spat_b64 = base64.b64encode(enc_spat).decode('utf-8')
     

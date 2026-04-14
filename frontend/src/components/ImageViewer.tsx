@@ -67,7 +67,6 @@ export default function ImageViewer({ id, externalSrc, regionSize = 100, regionI
       if (res.ok) {
         const data = await res.json();
         setFreqImgSrc(`data:image/png;base64,${data.image_b64}`);
-        setInternalImageSrc(`data:image/png;base64,${data.spatial_b64}`);
       }
     } catch (err) {
       console.error("Failed to fetch component", err);
