@@ -6,6 +6,8 @@ import base64
 from core.fourier import ImageFT, FTMixer
 from pydantic import BaseModel
 import json
+from pydantic import BaseModel
+from typing import List, Dict, Any
 
 router = APIRouter()
 
@@ -105,25 +107,33 @@ def get_component(port_id: str, component_type: str):
     return {"port": port_id, "component": component_type, "image_b64": b64_str, "spatial_b64": spat_b64}
 
 class MixRequest(BaseModel):
-    ports: list[str]
-    weights: list[dict]
-    region: dict | None = None
+    ports: List[str]
+    mag_weights: List[float]
+    phase_weights: List[float]
+    target_port: str | None = None
+    region: Dict[str, Any]
 
 @router.post("/mix")
 def mix_images(req: MixRequest):
-    aligned_images = []
-    aligned_weights = []
-    
-    for port, weight in zip(req.ports, req.weights):
-        if port in image_cache:
-            aligned_images.append(image_cache[port])
-            aligned_weights.append(weight)
+    images_ft = []
 
-    if not aligned_images:
-        raise HTTPException(status_code=400, detail="No images are loaded")
-        
-    mixed_img = FTMixer.mix(aligned_images, aligned_weights, req.region)
-    _, encoded_mix = cv2.imencode('.png', mixed_img)
-    b64_str = base64.b64encode(encoded_mix).decode('utf-8')
-    
-    return {"mixed_image_b64": b64_str}
+    for port in req.ports:
+        if port not in image_cache:
+            return {"error": f"Image at port {port} is not loaded"}
+        images_ft.append(image_cache[port])
+
+    region_pct = req.region.get("pct", 100) / 100.0
+    region_inner = req.region.get("inner", True)
+
+    result = mix_mag_phase(
+        images_ft=images_ft,
+        mag_weights=req.mag_weights,
+        phase_weights=req.phase_weights,
+        region_pct=region_pct,
+        region_inner=region_inner,
+    )
+
+    _, encoded = cv2.imencode(".png", result)
+    mixed_image_b64 = base64.b64encode(encoded.tobytes()).decode("utf-8")
+
+    return {"mixed_image_b64": mixed_image_b64}

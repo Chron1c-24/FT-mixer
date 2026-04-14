@@ -77,8 +77,10 @@ export default function ImageViewer({ id, externalSrc, regionSize = 100, regionI
   // So we export a `triggerRefetch` method via useImperativeHandle? No, we can just use an event listener 
   // or simple component fetch polling, but the cleanest is just fetching when policy updates
   useEffect(() => {
-    fetchComponent();
-  }, [component]);
+    if (imageSrc) {
+      fetchComponent();
+    }
+  }, [component, imageSrc]);
 
   useEffect(() => {
     const handler = () => fetchComponent();
