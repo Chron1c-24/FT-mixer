@@ -12,6 +12,8 @@ export default function Home() {
   const [regionSize, setRegionSize] = useState(100);
   const [regionInner, setRegionInner] = useState(true);
 
+  const [regionOffset, setRegionOffset] = useState({ x: 0, y: 0 });
+
   return (
     <div className="flex flex-col flex-1 h-full font-sans bg-[#09090b]">
       {/* Tab Navigation */}
@@ -40,7 +42,9 @@ export default function Home() {
                 <ImageViewer 
                    key={id} id={id} 
                    regionSize={regionSize} 
-                   regionInner={regionInner} 
+                   regionInner={regionInner}
+                   regionOffset={regionOffset}
+                   setRegionOffset={setRegionOffset} 
                 />
               ))}
             </div>
@@ -53,6 +57,8 @@ export default function Home() {
                    onResult={(src) => setMixedImage(src)} 
                    regionSize={regionSize} setRegionSize={setRegionSize}
                    regionInner={regionInner} setRegionInner={setRegionInner}
+                   regionOffset={regionOffset}
+                   setRegionOffset={setRegionOffset}
                 />
               </div>
 

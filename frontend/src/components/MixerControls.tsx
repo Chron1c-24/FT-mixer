@@ -1,14 +1,15 @@
-"use client"
+"use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 
-interface MixerProps {
-  onResult: (s: string) => void;
+type MixerProps = {
+  onResult: (src: string) => void;
   regionSize: number;
-  setRegionSize: (v: number) => void;
+  setRegionSize: (value: number) => void;
   regionInner: boolean;
-  setRegionInner: (v: boolean) => void;
-}
+  setRegionInner: (value: boolean) => void;
+  regionOffset: { x: number; y: number };
+};
 
 export default function MixerControls({
   onResult,
@@ -16,6 +17,7 @@ export default function MixerControls({
   setRegionSize,
   regionInner,
   setRegionInner,
+  regionOffset,
 }: MixerProps) {
   const [magWeights, setMagWeights] = useState([100, 0, 0, 0]);
   const [phaseWeights, setPhaseWeights] = useState([100, 0, 0, 0]);
@@ -48,6 +50,8 @@ export default function MixerControls({
         region: {
           pct: regionSize,
           inner: regionInner,
+          offset_x: regionOffset.x,
+          offset_y: regionOffset.y,
         },
       };
 
@@ -59,22 +63,32 @@ export default function MixerControls({
         body: JSON.stringify(reqBody),
       });
 
-      setProgress(80);
-
       if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || "Mix request failed");
+        const errorData = await res.json();
+        alert(errorData.detail || "Mix request failed");
+        return;
       }
+
+      setProgress(80);
 
       const data = await res.json();
 
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
       if (data.mixed_image_b64) {
         onResult(`data:image/png;base64,${data.mixed_image_b64}`);
+      } else {
+        alert("Backend returned no mixed image.");
+        return;
       }
 
       setProgress(100);
     } catch (err) {
       console.error("Mix failed", err);
+      alert("Something went wrong while mixing.");
     } finally {
       setTimeout(() => {
         setIsLoading(false);
@@ -159,9 +173,7 @@ export default function MixerControls({
             type="button"
             onClick={() => setRegionInner(!regionInner)}
             className={`px-3 py-1 rounded text-[11px] font-bold tracking-widest uppercase ${
-              regionInner
-                ? "bg-cyan-500 text-black"
-                : "bg-red-500 text-black"
+              regionInner ? "bg-cyan-500 text-black" : "bg-red-500 text-black"
             }`}
           >
             {regionInner ? "Inner Pass" : "Outer Pass"}
