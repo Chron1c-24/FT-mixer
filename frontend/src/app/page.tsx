@@ -6,13 +6,16 @@ import Emphasizer from "@/components/Emphasizer";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<"mixer" | "emphasizer">("mixer");
-  const [mixedImage, setMixedImage] = useState<string | null>(null);
+  const [output1Image, setOutput1Image] = useState<string | null>(null);
+  const [output2Image, setOutput2Image] = useState<string | null>(null);
 
   // Region bounds across all viewports
   const [regionSize, setRegionSize] = useState(100);
   const [regionInner, setRegionInner] = useState(true);
 
   const [regionOffset, setRegionOffset] = useState({ x: 0, y: 0 });
+
+  const [targetPort, setTargetPort] = useState("1");
 
   return (
     <div className="flex flex-col flex-1 h-full font-sans bg-[#09090b]">
@@ -53,24 +56,51 @@ export default function Home() {
             <div className="w-[380px] flex flex-col gap-6">
               <div className="bg-[#111] rounded-lg border border-[#222] p-5 shadow-xl flex flex-col gap-3">
                 <h3 className="font-semibold text-sm tracking-wide text-white uppercase border-b border-[#333] pb-3">Mixer Config</h3>
-                <MixerControls 
-                   onResult={(src) => setMixedImage(src)} 
-                   regionSize={regionSize} setRegionSize={setRegionSize}
-                   regionInner={regionInner} setRegionInner={setRegionInner}
-                   regionOffset={regionOffset}
-                   setRegionOffset={setRegionOffset}
+                <MixerControls
+                  targetPort={targetPort}
+                  setTargetPort={setTargetPort}
+                  onResult={(src) => {
+                    if (targetPort === "1") setOutput1Image(src);
+                    else setOutput2Image(src);
+                  }}
+                  regionSize={regionSize}
+                  setRegionSize={setRegionSize}
+                  regionInner={regionInner}
+                  setRegionInner={setRegionInner}
+                  regionOffset={regionOffset}
                 />
               </div>
 
-              <div className="flex-1 bg-[#111] rounded-lg border border-[#222] flex flex-col overflow-hidden shadow-xl">
-                <div className="bg-[#181818] p-3 border-b border-[#333] font-medium text-xs tracking-widest uppercase text-white flex justify-between items-center">
-                  <span>Output Viewport</span>
+              <div className="bg-[#111] rounded-lg border border-[#222] flex flex-col overflow-hidden shadow-xl min-h-[220px]">
+                <div className="bg-[#181818] p-3 border-b border-[#333] font-medium text-xs tracking-widest uppercase text-white">
+                  Output 1
                 </div>
                 <div className="flex-1 flex items-center justify-center text-gray-700 bg-black/40 overflow-hidden relative">
-                  {mixedImage ? (
-                    <img src={mixedImage} alt="Mixed Result" className="w-full h-full object-contain p-2" />
+                  {output1Image ? (
+                    <img
+                      src={output1Image}
+                      alt="Output 1"
+                      className="w-full h-full object-contain p-2"
+                    />
                   ) : (
-                    <span>Mixer Result</span>
+                    <span className="text-gray-500 text-sm">Output 1 Result</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-[#111] rounded-lg border border-[#222] flex flex-col overflow-hidden shadow-xl min-h-[220px]">
+                <div className="bg-[#181818] p-3 border-b border-[#333] font-medium text-xs tracking-widest uppercase text-white">
+                  Output 2
+                </div>
+                <div className="flex-1 flex items-center justify-center text-gray-700 bg-black/40 overflow-hidden relative">
+                  {output2Image ? (
+                    <img
+                      src={output2Image}
+                      alt="Output 2"
+                      className="w-full h-full object-contain p-2"
+                    />
+                  ) : (
+                    <span className="text-gray-500 text-sm">Output 2 Result</span>
                   )}
                 </div>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type MixerProps = {
   onResult: (src: string) => void;
@@ -9,6 +9,8 @@ type MixerProps = {
   regionInner: boolean;
   setRegionInner: (value: boolean) => void;
   regionOffset: { x: number; y: number };
+  targetPort: string;
+  setTargetPort: (value: string) => void;
 };
 
 export default function MixerControls({
@@ -18,12 +20,21 @@ export default function MixerControls({
   regionInner,
   setRegionInner,
   regionOffset,
+  targetPort,
+  setTargetPort,
 }: MixerProps) {
   const [magWeights, setMagWeights] = useState([100, 0, 0, 0]);
   const [phaseWeights, setPhaseWeights] = useState([100, 0, 0, 0]);
-  const [targetPort, setTargetPort] = useState("1");
   const [progress, setProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+
+  const [resizeMode, setResizeMode] = useState("smallest");
+  const [aspectMode, setAspectMode] = useState("keep");
+  const [fixedWidth, setFixedWidth] = useState(512);
+  const [fixedHeight, setFixedHeight] = useState(512);
+
+  const [slowMode, setSlowMode] = useState(false);
+  const requestIdRef = useRef(0);
 
   const handleMagChange = (index: number, value: number) => {
     const updated = [...magWeights];
@@ -39,16 +50,18 @@ export default function MixerControls({
 
   const runMixer = async () => {
     try {
+      requestIdRef.current += 1;
+      const currentRequestId = requestIdRef.current;
+  
       setIsLoading(true);
       setProgress(20);
-
+  
       const allPorts = ["1", "2", "3", "4"];
-
-
+  
       const activeIndexes = allPorts
         .map((port, i) => ({ port, i }))
         .filter(({ i }) => magWeights[i] > 0 || phaseWeights[i] > 0);
-
+  
       const reqBody = {
         ports: activeIndexes.map(({ port }) => port),
         mag_weights: activeIndexes.map(({ i }) => magWeights[i]),
@@ -60,46 +73,59 @@ export default function MixerControls({
           offset_x: regionOffset.x,
           offset_y: regionOffset.y,
         },
+        resize: {
+          mode: resizeMode,
+          aspect: aspectMode,
+          fixed_width: fixedWidth,
+          fixed_height: fixedHeight,
+        },
+        simulate_slow: slowMode,
       };
-
+  
       setProgress(50);
-
+  
       const res = await fetch("http://127.0.0.1:8000/api/mixer/mix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(reqBody),
       });
-
+  
+      if (currentRequestId !== requestIdRef.current) return;
+  
       if (!res.ok) {
         const errorData = await res.json();
         alert(errorData.detail || "Mix request failed");
         return;
       }
-
+  
       setProgress(80);
-
+  
       const data = await res.json();
-
+  
+      if (currentRequestId !== requestIdRef.current) return;
+  
       if (data.error) {
         alert(data.error);
         return;
       }
-
+  
       if (data.mixed_image_b64) {
         onResult(`data:image/png;base64,${data.mixed_image_b64}`);
       } else {
         alert("Backend returned no mixed image.");
         return;
       }
-
+  
       setProgress(100);
     } catch (err) {
       console.error("Mix failed", err);
       alert("Something went wrong while mixing.");
     } finally {
       setTimeout(() => {
-        setIsLoading(false);
-        setProgress(0);
+        if (requestIdRef.current >= 0) {
+          setIsLoading(false);
+          setProgress(0);
+        }
       }, 400);
     }
   };
@@ -124,6 +150,67 @@ export default function MixerControls({
         </select>
       </div>
 
+      <div className="mb-5">
+        <div className="text-[11px] uppercase tracking-widest text-gray-400 mb-2">
+          Resize Policy
+        </div>
+
+        <select
+          value={resizeMode}
+          onChange={(e) => setResizeMode(e.target.value)}
+          className="w-full bg-[#111] border border-[#333] rounded px-3 py-2 text-sm mb-3"
+        >
+          <option value="smallest">Smallest</option>
+          <option value="largest">Largest</option>
+          <option value="fixed">Fixed Size</option>
+        </select>
+
+        <select
+          value={aspectMode}
+          onChange={(e) => setAspectMode(e.target.value)}
+          className="w-full bg-[#111] border border-[#333] rounded px-3 py-2 text-sm mb-3"
+        >
+          <option value="keep">Keep Aspect Ratio</option>
+          <option value="ignore">Ignore Aspect Ratio</option>
+        </select>
+
+        {resizeMode === "fixed" && (
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="number"
+              min="1"
+              value={fixedWidth}
+              onChange={(e) => setFixedWidth(Number(e.target.value))}
+              className="bg-[#111] border border-[#333] rounded px-3 py-2 text-sm"
+              placeholder="Width"
+            />
+            <input
+              type="number"
+              min="1"
+              value={fixedHeight}
+              onChange={(e) => setFixedHeight(Number(e.target.value))}
+              className="bg-[#111] border border-[#333] rounded px-3 py-2 text-sm"
+              placeholder="Height"
+            />
+          </div>
+        )}
+      </div>
+      <div className="mb-5">
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] uppercase tracking-widest text-gray-400">
+            Slow Simulation
+          </div>
+          <button
+            type="button"
+            onClick={() => setSlowMode(!slowMode)}
+            className={`px-3 py-1 rounded text-[11px] font-bold tracking-widest uppercase ${
+              slowMode ? "bg-yellow-400 text-black" : "bg-[#222] text-white border border-[#333]"
+            }`}
+          >
+            {slowMode ? "On" : "Off"}
+          </button>
+        </div>
+      </div>
       <div className="mb-6">
         <div className="text-[11px] uppercase tracking-widest text-gray-400 mb-3">
           Magnitude Weights
@@ -204,11 +291,9 @@ export default function MixerControls({
           <span>100% (Full)</span>
         </div>
       </div>
-
       <button
-        className="mt-2 w-full bg-white hover:bg-gray-200 text-black uppercase tracking-widest font-bold text-xs py-3 rounded transition-colors shadow disabled:opacity-50"
+        className="mt-2 w-full bg-white hover:bg-gray-200 text-black uppercase tracking-widest font-bold text-xs py-3 rounded transition-colors shadow"
         onClick={runMixer}
-        disabled={isLoading}
       >
         {isLoading ? "Mixing..." : "Run Mixer"}
       </button>

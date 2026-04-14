@@ -4,13 +4,63 @@ from typing import List, Dict, Any
 import numpy as np
 import cv2
 import base64
-
 from core.fourier import ImageFT, mix_mag_phase
 
 router = APIRouter()
 
 image_cache: dict[str, ImageFT] = {}
 raw_image_cache: dict[str, np.ndarray] = {}
+
+def resize_with_aspect(img, target_w, target_h):
+    h, w = img.shape[:2]
+    scale = min(target_w / w, target_h / h)
+    new_w = max(1, int(w * scale))
+    new_h = max(1, int(h * scale))
+
+    resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+    canvas = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+    x_off = (target_w - new_w) // 2
+    y_off = (target_h - new_h) // 2
+    canvas[y_off:y_off + new_h, x_off:x_off + new_w] = resized
+    return canvas
+
+
+def resize_ignore_aspect(img, target_w, target_h):
+    return cv2.resize(img, (target_w, target_h), interpolation=cv2.INTER_AREA)
+
+
+def unify_images_by_policy(images, resize_cfg):
+    mode = resize_cfg.get("mode", "smallest")
+    aspect = resize_cfg.get("aspect", "keep")
+    fixed_width = int(resize_cfg.get("fixed_width", 512))
+    fixed_height = int(resize_cfg.get("fixed_height", 512))
+
+    widths = [img.shape[1] for img in images]
+    heights = [img.shape[0] for img in images]
+
+    if mode == "smallest":
+        target_w = min(widths)
+        target_h = min(heights)
+    elif mode == "largest":
+        target_w = max(widths)
+        target_h = max(heights)
+    elif mode == "fixed":
+        target_w = fixed_width
+        target_h = fixed_height
+    else:
+        target_w = min(widths)
+        target_h = min(heights)
+
+    resized_images = []
+    for img in images:
+        if aspect == "keep":
+            resized = resize_with_aspect(img, target_w, target_h)
+        else:
+            resized = resize_ignore_aspect(img, target_w, target_h)
+        resized_images.append(resized)
+
+    return resized_images
 
 
 class MixRequest(BaseModel):
@@ -19,6 +69,8 @@ class MixRequest(BaseModel):
     phase_weights: List[float]
     target_port: str | None = None
     region: Dict[str, Any]
+    resize: Dict[str, Any]
+    simulate_slow: bool = False
 
 
 @router.post("/upload/{port_id}")
@@ -67,6 +119,7 @@ def get_component(port_id: str, component_type: str):
     
 @router.post("/mix")
 def mix_images(req: MixRequest):
+
     active_images = []
 
     for port in req.ports:
@@ -77,20 +130,21 @@ def mix_images(req: MixRequest):
             )
         active_images.append(raw_image_cache[port])
 
-    min_h = min(img.shape[0] for img in active_images)
-    min_w = min(img.shape[1] for img in active_images)
+    # ✅ resize step
+    resized_images = unify_images_by_policy(active_images, req.resize)
 
-    resized_images = [
-        cv2.resize(img, (min_w, min_h), interpolation=cv2.INTER_AREA)
-        for img in active_images
-    ]
-
+    # ✅ build FT
     images_ft = [ImageFT(img) for img in resized_images]
 
+    # ✅ region config
     region_pct = req.region.get("pct", 100) / 100.0
     region_inner = req.region.get("inner", True)
     offset_x = req.region.get("offset_x", 0)
     offset_y = req.region.get("offset_y", 0)
+
+    if req.simulate_slow:
+        import time
+        time.sleep(5)
 
     result = mix_mag_phase(
         images_ft=images_ft,
